@@ -1,0 +1,76 @@
+services:
+  producer:
+    container_name: producer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SUBSCRIPTION_HOST: kafka:9092
+      SUBSCRIPTION_TOPIC: topic
+    volumes:
+      - ./:/app:delegated
+    working_dir: /app/producer
+    command:
+      - go
+      - run
+      - main.go
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  consumer:
+    container_name: consumer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      SUBSCRIPTION_HOST: kafka:9092
+      SUBSCRIPTION_TOPIC: topic
+    volumes:
+      - ./:/app:delegated
+    working_dir: /app/consumer
+    command:
+      - go
+      - run
+      - main.go
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  kafka:
+    container_name: kafka
+    restart: always
+    image: bitnami/kafka:3.5.1
+    hostname: kafka
+    ports:
+      - 9092:9092
+      - 9093:9093
+    environment:
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+    healthcheck:
+      test:
+        - CMD
+        - kafka-topics.sh
+        - --list
+        - --bootstrap-server
+        - kafka:9092
+      interval: 5s
+      timeout: 60s
+      retries: 120
+
+  kafdrop:
+    container_name: kafdrop
+    image: obsidiandynamics/kafdrop
+    restart: always
+    ports:
+      - 9000:9000
+    environment:
+      KAFKA_BROKERCONNECT: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
